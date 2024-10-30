@@ -128,7 +128,7 @@ func handleTextMessage(bot *linebot.Client, replyToken string, text string) {
 			return
 		}
 		bestRoute := getBestRoute(origin, destination, mode)
-		reply := fmt.Sprintf("起點: %s\n終點: %s\n\n%s", origin, destination, bestRoute)
+		reply := fmt.Sprintf("起點: %s\n終點: %s\n%s", origin, destination, bestRoute)
 		if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage(reply)).Do(); err != nil {
 			log.Print(err)
 		}
@@ -268,8 +268,8 @@ func getBestRoute(origin, destination, mode string) string {
 		re := regexp.MustCompile(`<[^>]*>`)   // 正則表達式匹配 HTML 標籤
 		return re.ReplaceAllString(input, "") // 替換標籤為空字串
 	}
-	for _, step := range steps {
-		routeInstructions += fmt.Sprintf("%s (需時: %s, 距離: %s)\n", removeHTMLTags(html.UnescapeString(step.HtmlInstructions)), step.Duration.Text, step.Distance.Text)
+	for idx, step := range steps {
+		routeInstructions += fmt.Sprintf("\n%d. %s (需時: %s, 距離: %s)\n", idx+1, removeHTMLTags(html.UnescapeString(step.HtmlInstructions)), step.Duration.Text, step.Distance.Text)
 	}
 
 	return routeInstructions
