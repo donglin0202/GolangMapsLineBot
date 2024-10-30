@@ -1,6 +1,5 @@
-module github.com/kkdai/LineBotTemplate
+module GolangMapsLineBot
 
-// +heroku goVersion go1.21
-go 1.21
+go 1.23.2
 
-require github.com/line/line-bot-sdk-go/v8 v8.2.0
+require github.com/line/line-bot-sdk-go/v8 v8.9.0
