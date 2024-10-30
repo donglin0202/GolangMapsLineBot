@@ -163,7 +163,7 @@ func getTrafficCondition(origin, destination string) string {
 	params.Add("language", "zh-TW")                     // 語言設定為繁體中文
 	params.Add("key", os.Getenv("GOOGLE_MAPS_API_KEY")) // API key
 	params.Add("traffic_model", "best_guess")           // 使用最佳交通預測模型
-	params.Add("mode", "driving")                       // 交通模式為開車
+	params.Add("mode", "driving")                       // 交通模式為開車，走路應該不用壅塞?
 
 	// 發送請求
 	apiURL := baseURL + params.Encode()
@@ -194,9 +194,9 @@ func getTrafficCondition(origin, destination string) string {
 	regularDuration := leg.Duration.Text
 	trafficDuration := leg.DurationInTraffic.Text
 	if regularDuration != trafficDuration {
-		return fmt.Sprintf("此路段有些微壅塞\n平常行車時間：%s，現在行車時間：%s", regularDuration, trafficDuration)
+		return fmt.Sprintf("此路段有些微壅塞\n平常開車時間:%s\n現在開車時間:%s", regularDuration, trafficDuration)
 	}
-	return fmt.Sprintf("交通狀況正常\n行車時間約為：%s", regularDuration)
+	return fmt.Sprintf("交通狀況正常\n開車時間約為:%s", regularDuration)
 }
 
 func getBestRoute(origin, destination string) string {
