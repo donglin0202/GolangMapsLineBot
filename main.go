@@ -29,7 +29,7 @@ import (
 )
 
 var bot *linebot.Client
-var Instruction = "1. 即時路況查詢\n指令:\n即時路況\n起點\n終點\n\n2. 最佳路徑查詢\n指令:\n最佳路徑\n起點\n終點\n交通模式(開車, 走路, 大眾運輸, 自行車)\n\n3. 預測高峰時段\n指令:\n預測高峰時段\n起點\n終點"
+var Instruction = "1. 即時路況查詢\n指令格式:\n即時路況\n[起點]\n[終點]\n\n2. 最佳路徑查詢\n指令格式:\n最佳路徑\n[起點]\n[終點]\n[交通模式(開車, 走路, 大眾運輸, 自行車)]\n\n3. 預測高峰時段\n指令格式:\n預測高峰時段\n[起點]\n[終點]"
 
 func main() {
 	var err error
@@ -89,7 +89,7 @@ func handleTextMessage(bot *linebot.Client, replyToken string, text string) {
 		}
 	case "即時路況":
 		if len(lines) != 3 {
-			if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage("指令格式錯誤，請重新輸入指令，支援指令格式為:\n\n"+Instruction+"\n")).Do(); err != nil {
+			if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage("指令格式錯誤，請重新輸入指令，支援指令格式為:\n\n"+Instruction)).Do(); err != nil {
 				log.Print(err)
 			}
 			return
@@ -104,7 +104,7 @@ func handleTextMessage(bot *linebot.Client, replyToken string, text string) {
 
 	case "最佳路徑":
 		if len(lines) != 4 {
-			if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage("指令格式錯誤，請重新輸入指令，支援指令格式為:\n\n"+Instruction+"\n")).Do(); err != nil {
+			if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage("指令格式錯誤，請重新輸入指令，支援指令格式為:\n\n"+Instruction)).Do(); err != nil {
 				log.Print(err)
 			}
 			return
@@ -134,6 +134,12 @@ func handleTextMessage(bot *linebot.Client, replyToken string, text string) {
 		}
 
 	case "預測高峰時段":
+		if len(lines) != 3 {
+			if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage("指令格式錯誤，請重新輸入指令，支援指令格式為:\n\n"+Instruction)).Do(); err != nil {
+				log.Print(err)
+			}
+			return
+		}
 		origin := strings.TrimSpace(lines[1])
 		destination := strings.TrimSpace(lines[2])
 		peakTimes := getPredictedTraffic(origin, destination)
@@ -143,7 +149,7 @@ func handleTextMessage(bot *linebot.Client, replyToken string, text string) {
 		}
 
 	default:
-		if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage("未知的功能，請輸入: 即時路況, 最佳路徑, 或 預測高峰時段")).Do(); err != nil {
+		if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage("指令格式錯誤，請重新輸入指令，支援指令格式為:\n\n"+Instruction)).Do(); err != nil {
 			log.Print(err)
 		}
 	}
