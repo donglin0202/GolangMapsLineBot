@@ -15,6 +15,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"net/http"
@@ -205,23 +206,6 @@ func getTrafficCondition(origin, destination string) string {
 }
 
 func getBestRoute(origin, destination, mode string) string {
-	type DirectionsResponse struct {
-		Routes []struct {
-			Legs []struct {
-				Steps []struct {
-					HtmlInstructions string `json:"html_instructions"`
-					Duration         struct {
-						Text  string `json:"text"`
-						Value int    `json:"value"` // Duration in seconds
-					} `json:"duration"`
-					Distance struct {
-						Text  string `json:"text"`
-						Value int    `json:"value"` // Distance in meters
-					} `json:"distance"`
-				} `json:"steps"`
-			} `json:"legs"`
-		} `json:"routes"`
-	}
 	baseURL := "https://maps.googleapis.com/maps/api/directions/json?"
 	params := url.Values{}
 	params.Add("origin", origin)
@@ -248,6 +232,23 @@ func getBestRoute(origin, destination, mode string) string {
 	}
 
 	// 解析 API 回應
+	type DirectionsResponse struct {
+		Routes []struct {
+			Legs []struct {
+				Steps []struct {
+					HtmlInstructions string `json:"html_instructions"`
+					Duration         struct {
+						Text  string `json:"text"`
+						Value int    `json:"value"` // Duration in seconds
+					} `json:"duration"`
+					Distance struct {
+						Text  string `json:"text"`
+						Value int    `json:"value"` // Distance in meters
+					} `json:"distance"`
+				} `json:"steps"`
+			} `json:"legs"`
+		} `json:"routes"`
+	}
 	var directionsResponse DirectionsResponse
 	if err := json.Unmarshal(body, &directionsResponse); err != nil {
 		log.Printf("Failed to unmarshal response: %v", err)
@@ -263,7 +264,7 @@ func getBestRoute(origin, destination, mode string) string {
 	steps := directionsResponse.Routes[0].Legs[0].Steps
 	var routeInstructions string
 	for _, step := range steps {
-		routeInstructions += fmt.Sprintf("%s (需時: %s, 距離: %s)\n", step.HtmlInstructions, step.Duration.Text, step.Distance.Text)
+		routeInstructions += fmt.Sprintf("%s (需時: %s, 距離: %s)\n", html.UnescapeString(step.HtmlInstructions), step.Duration.Text, step.Distance.Text)
 	}
 
 	return routeInstructions
