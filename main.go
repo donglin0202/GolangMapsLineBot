@@ -95,7 +95,7 @@ func handleTextMessage(bot *linebot.Client, replyToken string, text string) {
 		origin := strings.TrimSpace(lines[1])
 		destination := strings.TrimSpace(lines[2])
 		TrafficCondition := getTrafficCondition(origin, destination)
-		reply := fmt.Sprintf("起點: %s\n終點: %s\n%s", origin, destination, TrafficCondition)
+		reply := fmt.Sprintf("起點: %s\n終點: %s\n\n%s", origin, destination, TrafficCondition)
 		if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage(reply)).Do(); err != nil {
 			log.Print(err)
 		}
@@ -186,7 +186,7 @@ func getTrafficCondition(origin, destination string) string {
 
 	// 檢查是否有結果
 	if len(directionsResponse.Routes) == 0 || len(directionsResponse.Routes[0].Legs) == 0 {
-		return "無法獲取交通資訊，請確認起點和終點是否正確。\n"
+		return "無法獲取交通資訊，請確認起點和終點是否正確。"
 	}
 
 	// 取得交通狀況下的行車時間
@@ -194,9 +194,9 @@ func getTrafficCondition(origin, destination string) string {
 	regularDuration := leg.Duration.Text
 	trafficDuration := leg.DurationInTraffic.Text
 	if regularDuration != trafficDuration {
-		return fmt.Sprintf("此路段有些微壅塞\n平常行車時間：%s，現在行車時間：%s\n", regularDuration, trafficDuration)
+		return fmt.Sprintf("此路段有些微壅塞\n平常行車時間：%s，現在行車時間：%s", regularDuration, trafficDuration)
 	}
-	return fmt.Sprintf("交通狀況正常\n行車時間約為：%s\n", regularDuration)
+	return fmt.Sprintf("交通狀況正常\n行車時間約為：%s", regularDuration)
 }
 
 func getBestRoute(origin, destination string) string {
