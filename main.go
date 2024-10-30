@@ -15,7 +15,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -27,6 +27,7 @@ import (
 )
 
 var bot *linebot.Client
+var Instruction = "1. 即時路況查詢\n指令:\n即時路況\n起點\n終點\n\n2. 最佳路徑查詢\n指令:\n最佳路徑\n起點\n終點\n交通模式(開車, 走路, 大眾運輸, 自行車)\n\n3. 預測高峰時段\n指令:\n預測高峰時段\n起點\n終點"
 
 func main() {
 	var err error
@@ -48,7 +49,7 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	InstructionErrorMsg := "指令格式錯誤，請重新輸入指令，支援指令格式為:\n\n"
+	InstructionErrorMsg := "指令格式錯誤，請重新輸入指令，支援指令格式為:\n" + Instruction
 	for _, event := range cb.Events {
 		log.Printf("Got event %v", event)
 		switch e := event.(type) {
@@ -78,16 +79,15 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 func handleTextMessage(bot *linebot.Client, replyToken string, text string) {
 	lines := strings.Split(text, "\n")
 	function := strings.TrimSpace(lines[0])
-	instruction := ""
 
 	switch function {
 	case "指令":
-		if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage(instruction)).Do(); err != nil {
+		if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage("支援指令如下:\n"+Instruction)).Do(); err != nil {
 			log.Print(err)
 		}
 	case "即時路況":
-		if len(lines) < 3 {
-			if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage("指令格式錯誤，請重新輸入指令，支援指令格式為:\n\n"+instruction+"\n")).Do(); err != nil {
+		if len(lines) != 3 {
+			if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage("指令格式錯誤，請重新輸入指令，支援指令格式為:\n\n"+Instruction+"\n")).Do(); err != nil {
 				log.Print(err)
 			}
 			return
@@ -101,6 +101,12 @@ func handleTextMessage(bot *linebot.Client, replyToken string, text string) {
 		}
 
 	case "最佳路徑":
+		if len(lines) != 4 {
+			if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage("指令格式錯誤，請重新輸入指令，支援指令格式為:\n\n"+Instruction+"\n")).Do(); err != nil {
+				log.Print(err)
+			}
+			return
+		}
 		origin := strings.TrimSpace(lines[1])
 		destination := strings.TrimSpace(lines[2])
 		mode := strings.TrimSpace(lines[3])
@@ -119,8 +125,8 @@ func handleTextMessage(bot *linebot.Client, replyToken string, text string) {
 			}
 			return
 		}
-		bestRoute := getBestRoute(origin, destination)
-		reply := fmt.Sprintf("從 %s 到 %s 的最佳路徑為: %s", origin, destination, bestRoute)
+		bestRoute := getBestRoute(origin, destination, mode)
+		reply := fmt.Sprintf("起點: %s\n終點: %s\n\n%s", origin, destination, bestRoute)
 		if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage(reply)).Do(); err != nil {
 			log.Print(err)
 		}
@@ -139,19 +145,6 @@ func handleTextMessage(bot *linebot.Client, replyToken string, text string) {
 			log.Print(err)
 		}
 	}
-}
-
-type DirectionsResponse struct {
-	Routes []struct {
-		Legs []struct {
-			Duration struct {
-				Text string `json:"text"`
-			} `json:"duration"`
-			DurationInTraffic struct {
-				Text string `json:"text"`
-			} `json:"duration_in_traffic"`
-		} `json:"legs"`
-	} `json:"routes"`
 }
 
 func getTrafficCondition(origin, destination string) string {
@@ -173,12 +166,24 @@ func getTrafficCondition(origin, destination string) string {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Fatalf("Failed to read response body: %v", err)
 	}
 
 	// 解析 API 回應
+	type DirectionsResponse struct {
+		Routes []struct {
+			Legs []struct {
+				Duration struct {
+					Text string `json:"text"`
+				} `json:"duration"`
+				DurationInTraffic struct {
+					Text string `json:"text"`
+				} `json:"duration_in_traffic"`
+			} `json:"legs"`
+		} `json:"routes"`
+	}
 	var directionsResponse DirectionsResponse
 	if err := json.Unmarshal(body, &directionsResponse); err != nil {
 		log.Fatalf("Failed to unmarshal response: %v", err)
@@ -199,10 +204,69 @@ func getTrafficCondition(origin, destination string) string {
 	return fmt.Sprintf("交通狀況正常\n開車時間約為:%s", regularDuration)
 }
 
-func getBestRoute(origin, destination string) string {
-	// 呼叫 Google Maps Directions API (最佳路徑)
-	// 這裡需要替換成真實的 API 請求程式碼
-	return "最佳路徑"
+func getBestRoute(origin, destination, mode string) string {
+	type DirectionsResponse struct {
+		Routes []struct {
+			Legs []struct {
+				Steps []struct {
+					HtmlInstructions string `json:"html_instructions"`
+					Duration         struct {
+						Text  string `json:"text"`
+						Value int    `json:"value"` // Duration in seconds
+					} `json:"duration"`
+					Distance struct {
+						Text  string `json:"text"`
+						Value int    `json:"value"` // Distance in meters
+					} `json:"distance"`
+				} `json:"steps"`
+			} `json:"legs"`
+		} `json:"routes"`
+	}
+	baseURL := "https://maps.googleapis.com/maps/api/directions/json?"
+	params := url.Values{}
+	params.Add("origin", origin)
+	params.Add("destination", destination)
+	params.Add("departure_time", "now") // 即時出發時間
+	params.Add("mode", mode)
+	params.Add("language", "zh-TW")           // 語言設定為繁體中文
+	params.Add("traffic_model", "best_guess") // 使用最佳交通預測模型
+	params.Add("key", os.Getenv("GOOGLE_MAPS_API_KEY"))
+
+	// 發送請求
+	apiURL := baseURL + params.Encode()
+	resp, err := http.Get(apiURL)
+	if err != nil {
+		log.Printf("Failed to send request to Google Maps API: %v", err)
+		return "無法獲取最佳路徑"
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Failed to read response body: %v", err)
+		return "無法獲取最佳路徑"
+	}
+
+	// 解析 API 回應
+	var directionsResponse DirectionsResponse
+	if err := json.Unmarshal(body, &directionsResponse); err != nil {
+		log.Printf("Failed to unmarshal response: %v", err)
+		return "無法獲取最佳路徑"
+	}
+
+	// 檢查是否有結果
+	if len(directionsResponse.Routes) == 0 {
+		return "無法獲取最佳路徑"
+	}
+
+	// 建立路徑說明
+	steps := directionsResponse.Routes[0].Legs[0].Steps
+	var routeInstructions string
+	for _, step := range steps {
+		routeInstructions += fmt.Sprintf("%s (需時: %s, 距離: %s)\n", step.HtmlInstructions, step.Duration.Text, step.Distance.Text)
+	}
+
+	return routeInstructions
 }
 
 func getPredictedTraffic(origin, destination string) string {
