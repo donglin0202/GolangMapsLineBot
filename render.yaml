@@ -1,13 +1,17 @@
 services:
-- type: web
-  name: LineBotTemplate
-  env: go
-  buildCommand: go build -o app
-  startCommand: ./app
-  plan: free
-  autoDeploy: false
-  envVars:
-  - key: ChannelAccessToken
-    sync: false
-  - key: ChannelSecret
-    sync: false
+  - type: web
+    name: GolangMapsLineBot
+    env: go
+    buildCommand: go build -o app
+    startCommand: ./app
+    plan: free
+    autoDeploy: false
+    envVars:
+      - key: ChannelAccessToken
+        sync: false
+      - key: ChannelSecret
+        sync: false
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: TDX_API_KEY
+        sync: false
