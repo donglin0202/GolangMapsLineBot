@@ -13,11 +13,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
-	"strconv"
+	"strings"
 
 	"github.com/line/line-bot-sdk-go/v8/linebot"
 	"github.com/line/line-bot-sdk-go/v8/linebot/webhook"
@@ -45,7 +48,7 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-
+	InstructionErrorMsg := "指令格式錯誤，請重新輸入指令，支援指令格式為:\n\n"
 	for _, event := range cb.Events {
 		log.Printf("Got event %v", event)
 		switch e := event.(type) {
@@ -53,29 +56,12 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 			switch message := e.Message.(type) {
 			// Handle only on text message
 			case webhook.TextMessageContent:
-				// GetMessageQuota: Get how many remain free tier push message quota you still have this month. (maximum 500)
-				quota, err := bot.GetMessageQuota().Do()
-				if err != nil {
-					log.Println("Quota err:", err)
-				}
-				// message.ID: Msg unique ID
-				// message.Text: Msg text
-				if _, err = bot.ReplyMessage(e.ReplyToken, linebot.NewTextMessage("msg ID:"+message.Id+":"+"Get:"+message.Text+" , \n OK! remain message:"+strconv.FormatInt(quota.Value, 10))).Do(); err != nil {
-					log.Print(err)
-				}
+				handleTextMessage(bot, e.ReplyToken, message.Text)
 
-			// Handle only on Sticker message
-			case webhook.StickerMessageContent:
-				var kw string
-				for _, k := range message.Keywords {
-					kw = kw + "," + k
-				}
-
-				outStickerResult := fmt.Sprintf("收到貼圖訊息: %s, pkg: %s kw: %s  text: %s", message.StickerId, message.PackageId, kw, message.Text)
-				if _, err = bot.ReplyMessage(e.ReplyToken, linebot.NewTextMessage(outStickerResult)).Do(); err != nil {
-					log.Print(err)
-				}
 			default:
+				if _, err = bot.ReplyMessage(e.ReplyToken, linebot.NewTextMessage(InstructionErrorMsg)).Do(); err != nil {
+					log.Print(err)
+				}
 				log.Printf("Unknown message: %v", message)
 			}
 		case webhook.FollowEvent:
@@ -87,4 +73,136 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Got beacon: " + e.Beacon.Hwid)
 		}
 	}
+}
+
+func handleTextMessage(bot *linebot.Client, replyToken string, text string) {
+	lines := strings.Split(text, "\n")
+	function := strings.TrimSpace(lines[0])
+	instruction := ""
+
+	switch function {
+	case "指令":
+		if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage(instruction)).Do(); err != nil {
+			log.Print(err)
+		}
+	case "即時路況":
+		if len(lines) < 4 {
+			if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage("指令格式錯誤，請重新輸入指令，支援指令格式為:\n\n"+instruction+"\n")).Do(); err != nil {
+				log.Print(err)
+			}
+			return
+		}
+		origin := strings.TrimSpace(lines[1])
+		destination := strings.TrimSpace(lines[2])
+		mode := strings.TrimSpace(lines[3])
+		switch mode {
+		case "開車":
+			mode = "driving"
+		case "走路":
+			mode = "walking"
+		case "大眾運輸":
+			mode = "transit"
+		case "自行車":
+			mode = "bicycling"
+		default:
+			if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage("交通模式錯誤，請輸入: 開車, 走路, 大眾運輸, 或 自行車")).Do(); err != nil {
+				log.Print(err)
+			}
+			return
+		}
+		TrafficCondition := getTrafficCondition(origin, destination, mode)
+		reply := fmt.Sprintf("起點: %s\n終點: %s\n%s\n", origin, destination, TrafficCondition)
+		if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage(reply)).Do(); err != nil {
+			log.Print(err)
+		}
+
+	case "最佳路徑":
+		origin := strings.TrimSpace(lines[1])
+		destination := strings.TrimSpace(lines[2])
+		bestRoute := getBestRoute(origin, destination)
+		reply := fmt.Sprintf("從 %s 到 %s 的最佳路徑為: %s", origin, destination, bestRoute)
+		if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage(reply)).Do(); err != nil {
+			log.Print(err)
+		}
+
+	case "預測高峰時段":
+		origin := strings.TrimSpace(lines[1])
+		destination := strings.TrimSpace(lines[2])
+		peakTimes := getPredictedTraffic(origin, destination)
+		reply := fmt.Sprintf("從 %s 到 %s 的預測高峰時段為: %s", origin, destination, peakTimes)
+		if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage(reply)).Do(); err != nil {
+			log.Print(err)
+		}
+
+	default:
+		if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage("未知的功能，請輸入: 即時路況, 最佳路徑, 或 預測高峰時段")).Do(); err != nil {
+			log.Print(err)
+		}
+	}
+}
+
+type DirectionsResponse struct {
+	Routes []struct {
+		Legs []struct {
+			Duration struct {
+				Text string `json:"text"`
+			} `json:"duration"`
+			DurationInTraffic struct {
+				Text string `json:"text"`
+			} `json:"duration_in_traffic"`
+		} `json:"legs"`
+	} `json:"routes"`
+}
+
+func getTrafficCondition(origin, destination, mode string) string {
+	baseURL := "https://maps.googleapis.com/maps/api/directions/json?"
+	params := url.Values{}
+	params.Add("origin", origin)
+	params.Add("destination", destination)
+	params.Add("departure_time", "now")                 // 即時出發時間
+	params.Add("key", os.Getenv("GOOGLE_MAPS_API_KEY")) // API key
+	params.Add("traffic_model", "best_guess")           // 使用最佳交通預測模型
+	params.Add("mode", mode)                            // 交通模式為開車
+
+	// 發送請求
+	apiURL := baseURL + params.Encode()
+	resp, err := http.Get(apiURL)
+	if err != nil {
+		log.Fatalf("Failed to send request to Google Maps API: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalf("Failed to read response body: %v", err)
+	}
+
+	// 解析 API 回應
+	var directionsResponse DirectionsResponse
+	if err := json.Unmarshal(body, &directionsResponse); err != nil {
+		log.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	// 檢查是否有結果
+	if len(directionsResponse.Routes) == 0 || len(directionsResponse.Routes[0].Legs) == 0 {
+		return "無法獲取交通資訊，請確認起點和終點是否正確。"
+	}
+
+	// 取得交通狀況下的行車時間
+	leg := directionsResponse.Routes[0].Legs[0]
+	regularDuration := leg.Duration.Text
+	trafficDuration := leg.DurationInTraffic.Text
+	return fmt.Sprintf("平常需: %s\n現在需: %s", regularDuration, trafficDuration)
+}
+
+func getBestRoute(origin, destination string) string {
+	// 呼叫 Google Maps Directions API (最佳路徑)
+	// 這裡需要替換成真實的 API 請求程式碼
+	return "最佳路徑"
+}
+
+func getPredictedTraffic(origin, destination string) string {
+	// 呼叫 Google Maps Traffic API (預測流量)
+	// 這裡需要替換成真實的 API 請求程式碼
+	return "高峰時段"
 }
