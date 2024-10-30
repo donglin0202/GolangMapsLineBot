@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/line/line-bot-sdk-go/v8/linebot"
@@ -263,8 +264,12 @@ func getBestRoute(origin, destination, mode string) string {
 	// 建立路徑說明
 	steps := directionsResponse.Routes[0].Legs[0].Steps
 	var routeInstructions string
+	removeHTMLTags := func(input string) string {
+		re := regexp.MustCompile(`<[^>]*>`)   // 正則表達式匹配 HTML 標籤
+		return re.ReplaceAllString(input, "") // 替換標籤為空字串
+	}
 	for _, step := range steps {
-		routeInstructions += fmt.Sprintf("%s (需時: %s, 距離: %s)\n", html.UnescapeString(step.HtmlInstructions), step.Duration.Text, step.Distance.Text)
+		routeInstructions += fmt.Sprintf("%s (需時: %s, 距離: %s)\n", removeHTMLTags(html.UnescapeString(step.HtmlInstructions)), step.Duration.Text, step.Distance.Text)
 	}
 
 	return routeInstructions
