@@ -86,12 +86,21 @@ func handleTextMessage(bot *linebot.Client, replyToken string, text string) {
 			log.Print(err)
 		}
 	case "即時路況":
-		if len(lines) < 4 {
+		if len(lines) < 3 {
 			if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage("指令格式錯誤，請重新輸入指令，支援指令格式為:\n\n"+instruction+"\n")).Do(); err != nil {
 				log.Print(err)
 			}
 			return
 		}
+		origin := strings.TrimSpace(lines[1])
+		destination := strings.TrimSpace(lines[2])
+		TrafficCondition := getTrafficCondition(origin, destination)
+		reply := fmt.Sprintf("起點: %s\n終點: %s\n%s", origin, destination, TrafficCondition)
+		if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage(reply)).Do(); err != nil {
+			log.Print(err)
+		}
+
+	case "最佳路徑":
 		origin := strings.TrimSpace(lines[1])
 		destination := strings.TrimSpace(lines[2])
 		mode := strings.TrimSpace(lines[3])
@@ -110,15 +119,6 @@ func handleTextMessage(bot *linebot.Client, replyToken string, text string) {
 			}
 			return
 		}
-		TrafficCondition := getTrafficCondition(origin, destination, mode)
-		reply := fmt.Sprintf("起點: %s\n終點: %s\n%s\n", origin, destination, TrafficCondition)
-		if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage(reply)).Do(); err != nil {
-			log.Print(err)
-		}
-
-	case "最佳路徑":
-		origin := strings.TrimSpace(lines[1])
-		destination := strings.TrimSpace(lines[2])
 		bestRoute := getBestRoute(origin, destination)
 		reply := fmt.Sprintf("從 %s 到 %s 的最佳路徑為: %s", origin, destination, bestRoute)
 		if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage(reply)).Do(); err != nil {
@@ -154,15 +154,16 @@ type DirectionsResponse struct {
 	} `json:"routes"`
 }
 
-func getTrafficCondition(origin, destination, mode string) string {
+func getTrafficCondition(origin, destination string) string {
 	baseURL := "https://maps.googleapis.com/maps/api/directions/json?"
 	params := url.Values{}
 	params.Add("origin", origin)
 	params.Add("destination", destination)
 	params.Add("departure_time", "now")                 // 即時出發時間
+	params.Add("language", "zh-TW")                     // 語言設定為繁體中文
 	params.Add("key", os.Getenv("GOOGLE_MAPS_API_KEY")) // API key
 	params.Add("traffic_model", "best_guess")           // 使用最佳交通預測模型
-	params.Add("mode", mode)                            // 交通模式為開車
+	params.Add("mode", "driving")                       // 交通模式為開車
 
 	// 發送請求
 	apiURL := baseURL + params.Encode()
@@ -185,14 +186,17 @@ func getTrafficCondition(origin, destination, mode string) string {
 
 	// 檢查是否有結果
 	if len(directionsResponse.Routes) == 0 || len(directionsResponse.Routes[0].Legs) == 0 {
-		return "無法獲取交通資訊，請確認起點和終點是否正確。"
+		return "無法獲取交通資訊，請確認起點和終點是否正確。\n"
 	}
 
 	// 取得交通狀況下的行車時間
 	leg := directionsResponse.Routes[0].Legs[0]
 	regularDuration := leg.Duration.Text
 	trafficDuration := leg.DurationInTraffic.Text
-	return fmt.Sprintf("平常需: %s\n現在需: %s", regularDuration, trafficDuration)
+	if regularDuration != trafficDuration {
+		return fmt.Sprintf("此路段有些微壅塞\n平常行車時間：%s，現在行車時間：%s\n", regularDuration, trafficDuration)
+	}
+	return fmt.Sprintf("交通狀況正常\n行車時間約為：%s\n", regularDuration)
 }
 
 func getBestRoute(origin, destination string) string {
