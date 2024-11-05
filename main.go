@@ -23,6 +23,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/line/line-bot-sdk-go/v8/linebot"
 	"github.com/line/line-bot-sdk-go/v8/linebot/webhook"
@@ -285,14 +286,16 @@ func getPredictedTraffic(origin, destination string) string {
 	params := url.Values{}
 	params.Add("origin", origin)
 	params.Add("destination", destination)
-	params.Add("language", "zh-TW")                     // 語言設定為繁體中文
-	params.Add("key", os.Getenv("GOOGLE_MAPS_API_KEY")) // API key
-	params.Add("mode", "driving")                       // 交通模式為開車
+	params.Add("language", "zh-TW")
+	params.Add("key", os.Getenv("GOOGLE_MAPS_API_KEY"))
+	params.Add("mode", "driving")
+	params.Add("traffic_model", "best_guess") // 使用最佳交通預測模型
 
 	peakTimes := make(map[string]int)
 	for hour := 0; hour < 24; hour += 2 {
-		departureTime := fmt.Sprintf("%d:00", hour)
-		params.Set("departure_time", fmt.Sprintf("%d", hour*3600)) // 每2小時為一間隔
+		currentTime := time.Now()
+		departureTime := currentTime.Add(time.Duration(hour) * time.Hour).Unix()
+		params.Set("departure_time", fmt.Sprintf("%d", departureTime))
 
 		// 發送請求
 		apiURL := baseURL + params.Encode()
@@ -314,7 +317,7 @@ func getPredictedTraffic(origin, destination string) string {
 			Routes []struct {
 				Legs []struct {
 					DurationInTraffic struct {
-						Value int `json:"value"` // Duration in seconds
+						Value int `json:"value"`
 					} `json:"duration_in_traffic"`
 				} `json:"legs"`
 			} `json:"routes"`
@@ -322,18 +325,20 @@ func getPredictedTraffic(origin, destination string) string {
 		var directionsResponse DirectionsResponse
 		if err := json.Unmarshal(body, &directionsResponse); err != nil {
 			log.Printf("Failed to unmarshal response: %v", err)
+			log.Printf("Response body: %s", body) // 打印回應內容以便調試
 			continue
 		}
 
 		// 檢查是否有結果
 		if len(directionsResponse.Routes) == 0 || len(directionsResponse.Routes[0].Legs) == 0 {
+			log.Printf("No routes found in response: %s", body)
 			continue
 		}
 
 		// 取得交通狀況下的行車時間
 		leg := directionsResponse.Routes[0].Legs[0]
 		trafficDuration := leg.DurationInTraffic.Value
-		peakTimes[departureTime] = trafficDuration
+		peakTimes[fmt.Sprintf("%02d:00", hour)] = trafficDuration
 	}
 
 	// 找出最壅塞的時間段
@@ -350,5 +355,5 @@ func getPredictedTraffic(origin, destination string) string {
 		return "無法獲取預測交通資訊，請確認起點和終點是否正確。"
 	}
 
-	return fmt.Sprintf("從 %s 到 %s 的預測高峰時段為: %s", origin, destination, maxTrafficTime)
+	return fmt.Sprintf("從 %s 到 %s 的預測高峰時段為: %s左右", origin, destination, maxTrafficTime)
 }
