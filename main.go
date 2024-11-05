@@ -142,8 +142,7 @@ func handleTextMessage(bot *linebot.Client, replyToken string, text string) {
 		}
 		origin := strings.TrimSpace(lines[1])
 		destination := strings.TrimSpace(lines[2])
-		peakTimes := getPredictedTraffic(origin, destination)
-		reply := fmt.Sprintf("從 %s 到 %s 的預測高峰時段為: %s", origin, destination, peakTimes)
+		reply := fmt.Sprintf(getPredictedTraffic(origin, destination))
 		if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage(reply)).Do(); err != nil {
 			log.Print(err)
 		}
@@ -206,7 +205,7 @@ func getTrafficCondition(origin, destination string) string {
 	leg := directionsResponse.Routes[0].Legs[0]
 	regularDuration := leg.Duration.Text
 	trafficDuration := leg.DurationInTraffic.Text
-	if regularDuration != trafficDuration {
+	if regularDuration < trafficDuration {
 		return fmt.Sprintf("此路段有些微壅塞\n平常開車時間:%s\n現在開車時間:%s", regularDuration, trafficDuration)
 	}
 	return fmt.Sprintf("交通狀況正常\n開車時間約為:%s", regularDuration)
@@ -282,7 +281,74 @@ func getBestRoute(origin, destination, mode string) string {
 }
 
 func getPredictedTraffic(origin, destination string) string {
-	// 呼叫 Google Maps Traffic API (預測流量)
-	// 這裡需要替換成真實的 API 請求程式碼
-	return "高峰時段"
+	baseURL := "https://maps.googleapis.com/maps/api/directions/json?"
+	params := url.Values{}
+	params.Add("origin", origin)
+	params.Add("destination", destination)
+	params.Add("language", "zh-TW")                     // 語言設定為繁體中文
+	params.Add("key", os.Getenv("GOOGLE_MAPS_API_KEY")) // API key
+	params.Add("mode", "driving")                       // 交通模式為開車
+
+	peakTimes := make(map[string]int)
+	for hour := 0; hour < 24; hour += 2 {
+		departureTime := fmt.Sprintf("%d:00", hour)
+		params.Set("departure_time", fmt.Sprintf("%d", hour*3600)) // 每2小時為一間隔
+
+		// 發送請求
+		apiURL := baseURL + params.Encode()
+		resp, err := http.Get(apiURL)
+		if err != nil {
+			log.Printf("Failed to send request to Google Maps API: %v", err)
+			continue
+		}
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Printf("Failed to read response body: %v", err)
+			continue
+		}
+
+		// 解析 API 回應
+		type DirectionsResponse struct {
+			Routes []struct {
+				Legs []struct {
+					DurationInTraffic struct {
+						Value int `json:"value"` // Duration in seconds
+					} `json:"duration_in_traffic"`
+				} `json:"legs"`
+			} `json:"routes"`
+		}
+		var directionsResponse DirectionsResponse
+		if err := json.Unmarshal(body, &directionsResponse); err != nil {
+			log.Printf("Failed to unmarshal response: %v", err)
+			continue
+		}
+
+		// 檢查是否有結果
+		if len(directionsResponse.Routes) == 0 || len(directionsResponse.Routes[0].Legs) == 0 {
+			continue
+		}
+
+		// 取得交通狀況下的行車時間
+		leg := directionsResponse.Routes[0].Legs[0]
+		trafficDuration := leg.DurationInTraffic.Value
+		peakTimes[departureTime] = trafficDuration
+	}
+
+	// 找出最壅塞的時間段
+	var maxTrafficTime string
+	var maxTrafficDuration int
+	for time, duration := range peakTimes {
+		if duration > maxTrafficDuration {
+			maxTrafficDuration = duration
+			maxTrafficTime = time
+		}
+	}
+
+	if maxTrafficTime == "" {
+		return "無法獲取預測交通資訊，請確認起點和終點是否正確。"
+	}
+
+	return fmt.Sprintf("從 %s 到 %s 的預測高峰時段為: %s", origin, destination, maxTrafficTime)
 }
