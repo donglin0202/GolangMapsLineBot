@@ -355,5 +355,5 @@ func getPredictedTraffic(origin, destination string) string {
 		return "無法獲取預測交通資訊，請確認起點和終點是否正確。"
 	}
 
-	return fmt.Sprintf("從 %s 到 %s 的預測高峰時段為: %s左右", origin, destination, maxTrafficTime)
+	return fmt.Sprintf("起點: %s\n終點: %s\n預測高峰時段為: %s左右", origin, destination, maxTrafficTime)
 }
