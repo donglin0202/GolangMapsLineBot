@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -152,7 +153,7 @@ func GetConstruction(target string) string {
 				item.CaseID, item.Start, item.Stop, item.SLocation)
 		}
 	case "新竹市":
-		URL := "https://opendata.hccg.gov.tw/API/v3/Rest/OpenData/A5C2E3B25BE2E9C2?take=5&skip=0"
+		URL := os.Getenv("PROXY_URL") + "https://opendata.hccg.gov.tw/API/v3/Rest/OpenData/A5C2E3B25BE2E9C2?take=5&skip=0"
 		resp, err := http.Get(URL)
 		if err != nil {
 			fmt.Println("無法取得資料:", err)
@@ -195,7 +196,7 @@ func GetConstruction(target string) string {
 			}
 		}
 	case "新竹縣":
-		URL := "https://pu.hsinchu.gov.tw/svc/svc/CaseList.aspx"
+		URL := os.Getenv("PROXY_URL") + "https://pu.hsinchu.gov.tw/svc/svc/CaseList.aspx"
 		resp, err := http.Get(URL)
 		if err != nil {
 			fmt.Println("HTTP GET 失敗:", err)
@@ -229,7 +230,7 @@ func GetConstruction(target string) string {
 				switch j {
 				case 0:
 					construction.CaseNo = text
-				case 1:
+				case 3:
 					construction.Location = text
 				case 4:
 					construction.Period = text
@@ -404,7 +405,7 @@ func GetConstruction(target string) string {
 			reply += fmt.Sprintf("時間: %s ~ %s\n\n", c.ABE_DA, c.AEN_DA)
 		}
 	case "嘉義縣":
-		URL := "https://publicpipe.cyhg.gov.tw/ChiayiPub/Report1.aspx"
+		URL := os.Getenv("PROXY_URL") + "https://publicpipe.cyhg.gov.tw/ChiayiPub/Report1.aspx"
 		resp, err := http.Get(URL)
 		if err != nil {
 			fmt.Println("HTTP GET 失敗:", err)
@@ -605,7 +606,7 @@ func GetConstruction(target string) string {
 			reply += fmt.Sprintf("狀態: %s\n\n", status)
 		}
 	case "高雄市":
-		URL := "https://pipegis.kcg.gov.tw/openDataService.aspx"
+		URL := os.Getenv("PROXY_URL") + "https://pipegis.kcg.gov.tw/openDataService.aspx"
 		resp, err := http.Get(URL)
 		if err != nil {
 			fmt.Println("HTTP GET 失敗:", err)
@@ -678,7 +679,7 @@ func GetConstruction(target string) string {
 			reply += fmt.Sprintf("說明: %s\n\n", description)
 		}
 	case "屏東縣":
-		URL := "https://cdn.odportal.tw/api/v1/resource/SfsCLK-2/61ae820f3a1469002467f7c3"
+		URL := os.Getenv("PROXY_URL") + "https://cdn.odportal.tw/api/v1/resource/SfsCLK-2/61ae820f3a1469002467f7c3"
 		resp, err := http.Get(URL)
 		if err != nil {
 			fmt.Println("HTTP GET 失敗:", err)
@@ -764,7 +765,7 @@ func GetConstruction(target string) string {
 			reply += fmt.Sprintf("日期：%s\n\n", combinedDate)
 		}
 	case "宜蘭縣":
-		URL := "https://cdn.odportal.tw/api/v1/resource/DSNTMGUM/61b504bb6e97860024674b09"
+		URL := os.Getenv("PROXY_URL") + "https://cdn.odportal.tw/api/v1/resource/DSNTMGUM/61b504bb6e97860024674b09"
 		resp, err := http.Get(URL)
 		if err != nil {
 			fmt.Println("HTTP GET 失敗:", err)
