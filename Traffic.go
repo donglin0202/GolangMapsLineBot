@@ -154,11 +154,7 @@ func getBestRoute(origin, destination, mode string) map[string]interface{} {
 		re := regexp.MustCompile(`<[^>]*>`)   // 正則表達式匹配 HTML 標籤
 		return re.ReplaceAllString(input, "") // 替換標籤為空字串
 	}
-	/*for idx, step := range steps {
-		routeInstructions += fmt.Sprintf("\n%d. %s (需時: %s, 距離: %s)\n", idx+1, removeHTMLTags(html.UnescapeString(step.HtmlInstructions)), step.Duration.Text, step.Distance.Text)
-	}
 
-	return routeInstructions*/
 	var routeSteps []map[string]interface{}
 
 	// 將步驟整合成 Flex Message body 的內容
@@ -175,7 +171,7 @@ func getBestRoute(origin, destination, mode string) map[string]interface{} {
 				},
 				{
 					"type":  "text",
-					"text":  fmt.Sprintf("需時: %s, 距離: %s", step.Duration.Text, step.Distance.Text),
+					"text":  fmt.Sprintf("%s, %s", step.Distance.Text, step.Duration.Text),
 					"size":  "xs",
 					"color": "#888888",
 					"align": "end",
