@@ -69,8 +69,33 @@ func getTrafficCondition(origin, destination string) string {
 	}
 	return fmt.Sprintf("交通狀況正常\n開車時間約為:%s", regularDuration)
 }
-
-func getBestRoute(origin, destination, mode string) string {
+func createErrorFlexMessage(message string) map[string]interface{} {
+	return map[string]interface{}{
+		"type": "bubble",
+		"body": map[string]interface{}{
+			"type":   "box",
+			"layout": "vertical",
+			"contents": []map[string]interface{}{
+				{
+					"type":   "text",
+					"text":   "發生錯誤",
+					"size":   "xl",
+					"color":  "#FF0000",
+					"weight": "bold",
+				},
+				{
+					"type":   "text",
+					"text":   message,
+					"size":   "sm",
+					"color":  "#555555",
+					"wrap":   true,
+					"margin": "md",
+				},
+			},
+		},
+	}
+}
+func getBestRoute(origin, destination, mode string) map[string]interface{} {
 	baseURL := "https://maps.googleapis.com/maps/api/directions/json?"
 	params := url.Values{}
 	params.Add("origin", origin)
@@ -86,14 +111,14 @@ func getBestRoute(origin, destination, mode string) string {
 	resp, err := http.Get(apiURL)
 	if err != nil {
 		log.Printf("Failed to send request to Google Maps API: %v", err)
-		return "無法獲取最佳路徑"
+		return createErrorFlexMessage("無法獲取最佳路徑")
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Printf("Failed to read response body: %v", err)
-		return "無法獲取最佳路徑"
+		return createErrorFlexMessage("無法讀取回應內容")
 	}
 
 	// 解析 API 回應
@@ -103,12 +128,10 @@ func getBestRoute(origin, destination, mode string) string {
 				Steps []struct {
 					HtmlInstructions string `json:"html_instructions"`
 					Duration         struct {
-						Text  string `json:"text"`
-						Value int    `json:"value"` // Duration in seconds
+						Text string `json:"text"`
 					} `json:"duration"`
 					Distance struct {
-						Text  string `json:"text"`
-						Value int    `json:"value"` // Distance in meters
+						Text string `json:"text"`
 					} `json:"distance"`
 				} `json:"steps"`
 			} `json:"legs"`
@@ -117,26 +140,93 @@ func getBestRoute(origin, destination, mode string) string {
 	var directionsResponse DirectionsResponse
 	if err := json.Unmarshal(body, &directionsResponse); err != nil {
 		log.Printf("Failed to unmarshal response: %v", err)
-		return "無法獲取最佳路徑"
+		return createErrorFlexMessage("解析 Google Maps API 回應失敗")
 	}
 
-	// 檢查是否有結果
-	if len(directionsResponse.Routes) == 0 {
-		return "無法獲取最佳路徑"
+	// 檢查是否有路徑資料
+	if len(directionsResponse.Routes) == 0 || len(directionsResponse.Routes[0].Legs) == 0 {
+		return createErrorFlexMessage("無法獲取路徑資訊")
 	}
 
-	// 建立路徑說明
+	// 提取步驟資訊
 	steps := directionsResponse.Routes[0].Legs[0].Steps
-	var routeInstructions string
 	removeHTMLTags := func(input string) string {
 		re := regexp.MustCompile(`<[^>]*>`)   // 正則表達式匹配 HTML 標籤
 		return re.ReplaceAllString(input, "") // 替換標籤為空字串
 	}
-	for idx, step := range steps {
+	/*for idx, step := range steps {
 		routeInstructions += fmt.Sprintf("\n%d. %s (需時: %s, 距離: %s)\n", idx+1, removeHTMLTags(html.UnescapeString(step.HtmlInstructions)), step.Duration.Text, step.Distance.Text)
 	}
 
-	return routeInstructions
+	return routeInstructions*/
+	var routeSteps []map[string]interface{}
+
+	// 將步驟整合成 Flex Message body 的內容
+	for idx, step := range steps {
+		routeSteps = append(routeSteps, map[string]interface{}{
+			"type":   "box",
+			"layout": "horizontal",
+			"contents": []map[string]interface{}{
+				{
+					"type": "text",
+					"text": fmt.Sprintf("%d. %s", idx+1, removeHTMLTags(html.UnescapeString(step.HtmlInstructions))),
+					"size": "sm",
+					"wrap": true,
+				},
+				{
+					"type":  "text",
+					"text":  fmt.Sprintf("需時: %s, 距離: %s", step.Duration.Text, step.Distance.Text),
+					"size":  "xs",
+					"color": "#888888",
+					"align": "end",
+				},
+			},
+		})
+	}
+
+	// 組裝完整的 Flex Message
+	return map[string]interface{}{
+		"type": "bubble",
+		"header": map[string]interface{}{
+			"type":   "box",
+			"layout": "vertical",
+			"contents": []map[string]interface{}{
+				{
+					"type":  "text",
+					"text":  "FROM",
+					"size":  "sm",
+					"color": "#ffffff66",
+				},
+				{
+					"type":   "text",
+					"text":   origin,
+					"size":   "xl",
+					"color":  "#ffffff",
+					"weight": "bold",
+				},
+				{
+					"type":  "text",
+					"text":  "TO",
+					"size":  "sm",
+					"color": "#ffffff66",
+				},
+				{
+					"type":   "text",
+					"text":   destination,
+					"size":   "xl",
+					"color":  "#ffffff",
+					"weight": "bold",
+				},
+			},
+			"backgroundColor": "#0367D3",
+			"paddingAll":      "20px",
+		},
+		"body": map[string]interface{}{
+			"type":     "box",
+			"layout":   "vertical",
+			"contents": routeSteps,
+		},
+	}
 }
 
 func getPredictedTraffic(origin, destination string) string {

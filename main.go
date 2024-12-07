@@ -13,6 +13,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -103,6 +104,16 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func replyWithFlexMessage(bot *linebot.Client, replyToken string, flex map[string]interface{}) error {
+	flexJSON, err := json.Marshal(flex)
+	flexContainer, err := linebot.UnmarshalFlexMessageJSON(flexJSON)
+	if err != nil {
+		return err
+	}
+	_, err = bot.ReplyMessage(replyToken, linebot.NewFlexMessage("最佳路線", flexContainer)).Do()
+	return err
+}
+
 func handleTextMessage(bot *linebot.Client, replyToken string, text string) {
 	lines := strings.Split(text, "\n")
 	function := strings.TrimSpace(lines[0])
@@ -153,8 +164,7 @@ func handleTextMessage(bot *linebot.Client, replyToken string, text string) {
 			return
 		}
 		bestRoute := getBestRoute(origin, destination, mode)
-		reply := fmt.Sprintf("起點: %s\n終點: %s\n%s", origin, destination, bestRoute)
-		if _, err := bot.ReplyMessage(replyToken, linebot.NewTextMessage(reply)).Do(); err != nil {
+		if err := replyWithFlexMessage(bot, replyToken, bestRoute); err != nil {
 			log.Print(err)
 		}
 
