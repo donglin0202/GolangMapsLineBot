@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -486,124 +485,6 @@ func GetConstruction(target string) string {
 			reply += fmt.Sprintf("%s\n", c.EndPoint)
 			reply += fmt.Sprintf("日期: %s\n", c.Date)
 			reply += fmt.Sprintf("狀態: %s\n\n", c.Status)
-		}
-	case "台南市":
-		URL := "https://soa.tainan.gov.tw/Api/Service/Get/8d5e8855-b9c4-4acd-b73d-cf2afb2e51e5"
-		resp, err := http.Get(URL)
-		if err != nil {
-			fmt.Println("HTTP GET 失敗:", err)
-			return "Error，請再試一次"
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			fmt.Printf("HTTP 請求失敗，狀態碼: %d\n", resp.StatusCode)
-			return "Error，請再試一次"
-		}
-
-		type TainanEntry struct {
-			Location string `json:"LOCATION"`
-			ABE_DA   string `json:"ABE_DA"`
-			AEN_DA   string `json:"AEN_DA"`
-			StatDesc string `json:"StatDesc"`
-		}
-
-		type TainanResponse struct {
-			Data []TainanEntry `json:"data"`
-		}
-
-		var tainanData TainanResponse
-		bodyBytes, err := io.ReadAll(resp.Body)
-		if err != nil {
-			fmt.Println("讀取回應失敗:", err)
-			return "Error，請再試一次"
-		}
-
-		err = json.Unmarshal(bodyBytes, &tainanData)
-		if err != nil {
-			fmt.Println("解析 JSON 失敗:", err)
-			return "Error，請再試一次"
-		}
-
-		conns := tainanData.Data
-
-		// 將資料按照 ABE_DA (開始日期) 進行排序，最新的在前
-		sort.Slice(conns, func(i, j int) bool {
-			// 提取並分割日期部分
-			startDateStr := strings.Split(strings.TrimSpace(conns[i].ABE_DA), " ")[0]
-
-			timeI, err1 := time.Parse("2006/1/2", startDateStr)
-			if err1 != nil {
-				// 解析失敗
-				return false
-			}
-
-			startDateStrJ := strings.Split(strings.TrimSpace(conns[j].ABE_DA), " ")[0]
-
-			timeJ, err2 := time.Parse("2006/1/2", startDateStrJ)
-			if err2 != nil {
-				return false
-			}
-
-			return timeI.After(timeJ)
-		})
-
-		// 取最新的10筆資料
-		if len(conns) > 5 {
-			conns = conns[:5]
-		}
-
-		for _, item := range conns {
-			// 分割起點與終點
-			locations := strings.Split(item.Location, "訖")
-			startPoint := ""
-			endPoint := ""
-			if len(locations) == 2 {
-				startPoint = strings.TrimSpace(locations[0])
-				endPoint = strings.TrimSpace(locations[1])
-			} else {
-				startPoint = strings.TrimSpace(item.Location)
-				endPoint = "無資料"
-			}
-
-			// 日期
-			startDateStr := strings.Split(strings.TrimSpace(item.ABE_DA), " ")[0]
-			endDateStr := strings.Split(strings.TrimSpace(item.AEN_DA), " ")[0]
-			var combinedDate string
-
-			// 將日期轉換為民國年格式
-			startDate, err1 := time.Parse("2006/1/2", startDateStr)
-			if err1 != nil {
-				fmt.Printf("解析開始日期失敗: %v\n", err1)
-				startDate = time.Time{}
-			}
-			endDate, err2 := time.Parse("2006/1/2", endDateStr)
-			if err2 != nil {
-				fmt.Printf("解析結束日期失敗: %v\n", err2)
-				endDate = time.Time{}
-			}
-
-			if !startDate.IsZero() && !endDate.IsZero() {
-				combinedDate = fmt.Sprintf("%d年%02d月%02d日至%d年%02d月%02d日",
-					startDate.Year()-1911, startDate.Month(), startDate.Day(),
-					endDate.Year()-1911, endDate.Month(), endDate.Day())
-			} else if !startDate.IsZero() {
-				combinedDate = fmt.Sprintf("%d年%02d月%02d日至",
-					startDate.Year()-1911, startDate.Month(), startDate.Day())
-			} else {
-				combinedDate = "無資料"
-			}
-
-			// 狀態
-			status := strings.TrimSpace(item.StatDesc)
-			if status == "" {
-				status = "無狀態資料"
-			}
-
-			reply += fmt.Sprintf("起點：%s\n", startPoint)
-			reply += fmt.Sprintf("終點：%s\n", endPoint)
-			reply += fmt.Sprintf("日期: %s\n", combinedDate)
-			reply += fmt.Sprintf("狀態: %s\n\n", status)
 		}
 	case "高雄市":
 		URL := os.Getenv("PROXY_URL") + "https://pipegis.kcg.gov.tw/openDataService.aspx"
