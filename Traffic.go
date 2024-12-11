@@ -22,7 +22,7 @@ func getTrafficCondition(origin, destination string) string {
 	params.Add("language", "zh-TW")                     // 語言設定為繁體中文
 	params.Add("key", os.Getenv("GOOGLE_MAPS_API_KEY")) // API key
 	params.Add("traffic_model", "best_guess")           // 使用最佳交通預測模型
-	params.Add("mode", "driving")                       // 交通模式為開車，走路應該不用壅塞?
+	params.Add("mode", "driving")                       // 交通模式為開車(Direction API規定)
 
 	// 發送請求
 	apiURL := baseURL + params.Encode()
@@ -269,7 +269,7 @@ func getPredictedTraffic(origin, destination string) string {
 		var directionsResponse DirectionsResponse
 		if err := json.Unmarshal(body, &directionsResponse); err != nil {
 			log.Printf("Failed to unmarshal response: %v", err)
-			log.Printf("Response body: %s", body) // 打印回應內容以便調試
+			log.Printf("Response body: %s", body) // print回應內容以便debug
 			continue
 		}
 
