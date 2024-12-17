@@ -58,7 +58,8 @@
 ---
 
 ## Demo
-1. 將[地圖助手](https://lin.ee/rsas2S7)加入好友。![image](https://github.com/user-attachments/assets/9f9c78bc-820f-418a-b280-a398fad5072c)
+1. 將[地圖助手](https://lin.ee/rsas2S7)加入好友。
+![image](https://github.com/user-attachments/assets/9f9c78bc-820f-418a-b280-a398fad5072c)
 2. 依據上述功能的指令格式，輸入相關內容進行查詢。
 3. Line Bot 將回傳對應的結果。
 
